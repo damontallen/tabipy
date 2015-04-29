@@ -11,6 +11,19 @@ except ImportError:
     from itertools import izip_longest as zip_longest  # Python 2
 from collections import Mapping
 
+class _Align(object):
+    def __init__(self, parent):
+        self._parent = parent
+        
+    def center(self):
+        self._parent._align_method('Center')
+        
+    def left(self):
+        self._parent._align_method('Left')
+    
+    def right(self):
+        self._parent._align_method('Right')
+
 class TableCell(object):
     bg_colour = None
     _latex_escape_table = {'&': r'\&',
@@ -35,7 +48,7 @@ class TableCell(object):
         self.col_span = col_span
         self._P_amount = 0
         self._align = 'L'
-        self.align = align
+        self.align = _Align(self)
         self._global_align = self._align
         self._global_P_amount = self._P_amount
         self._suppress = False
@@ -69,8 +82,6 @@ class TableCell(object):
             if key == 'align':
                 align = {'L':'Left','C':'Center','R':'Right','P':'Position'}
                 current = align[self._align]
-                if self._align == 'P':
-                    current += '{%s}'%self._P_amount
                 current = "'%s'"%current
             if default!=current:
                 text += ', {}={}'.format(key,current)
@@ -87,62 +98,26 @@ class TableCell(object):
         if self.text_colour:
             rules.append('color:%s' % self.text_colour)
         Align = {"L":"left","R":"right","C":"center"}
-        rules.append("text-align:%s"%Align[self.align.html])
+        rules.append("text-align:%s"%Align[self._alignment.html])
         if self._align == 'P':
             rules.append("padding:%g"%self.align.html_padding)
         return '; '.join(rules)
         
-    def _convert_P_amount_to_px(self):
-        "This converts position offset to pixels of padding for html display"
-        pos=self._P_amount.strip()
-        num=''
-        for char in pos:
-            try:
-                Num_amount = float(num+char)
-                num+=char
-            except:
-                break
-        unit = pos.strip(num)
-        if unit.lower() =='in':
-            px = round(96 * num)
-        elif unit.lower() == 'cm':
-            n = num/2.54
-            px = round(96 * n)
-        PositionData = namedtuple("PositionData","number unit pixels")
-        pos_data = PositionData(Num_amount,unit,px)
-        return pos_data
-    
     @property
-    def align(self):
-        if self._align =='P':
-            Num_amount, unit, px = self._convert_P_amount_to_px()
-            Latex_align = 'p{%g%s}'%(Num_amount,unit)
-            Html_align = 'L'
-            Html_padding = px
-        else:
-            Latex_align = self._align.lower()
-            Html_align = self._align
-            Html_padding = 0
+    def _alignment(self):
+        Latex_align = self._align.lower()
+        Html_align = self._align
+        Html_padding = 0
         Alignment = namedtuple('Alignment','latex html html_padding')
         alignment = Alignment(Latex_align, Html_align, Html_padding)
         return alignment
-    @align.setter
-    def align(self,val):
-        if val.upper()[0] not in ('L','C','R','P'):
-            er = "Content alignment must be Left, Right, Center or Position"
+
+    def _align_method(self,val):
+        if val.upper()[0] not in ('L','C','R'):
+            er = "Content alignment must be Left, Right, or Center"
             raise(ValueError(er))
         letter = val.upper()[0]
-        tmp_align = self._align
         self._align = letter
-        if letter=='P':
-            tmp_P_amount = self._P_amount
-            self._P_amount = val.split('{')[1].split('}')[0]
-            check = self._convert_P_amount_to_px()
-            if check.unit != 'in' and check.unit != 'cm':
-                er = "To use the position alignment you must use units od inches or cm e.g. P{0.25in}"
-                self._align = tmp_align
-                self._P_amount = tmp_P_amount
-                raise(ValueError(er))
         
     def _check_span(self,val):
         "Validate the span value."
@@ -199,12 +174,12 @@ class TableCell(object):
         else:
             text_row = out
         if self.col_span>1:
-            text = "\multicolumn{%d}{%s}{%s}"%(self.col_span, self.align.latex,
+            text = "\multicolumn{%d}{%s}{%s}"%(self.col_span, self._alignment.latex,
                                                text_row)
         elif self._align != self._global_align:
-            text = "\multicolumn{1}{%s}{%s}"%(self.align.latex, text_row)
-        elif self._align == 'P' and self._P_amount != self._global_P_amount:
-            text = "\multicolumn{1}{%s}{%s}"%(self.align.latex, text_row)
+            text = "\multicolumn{1}{%s}{%s}"%(self._alignment.latex, text_row)
+#         elif self._align == 'P' and self._P_amount != self._global_P_amount:
+#             text = "\multicolumn{1}{%s}{%s}"%(self._alignment.latex, text_row)
         else:
             text = text_row    
         return text
@@ -354,6 +329,7 @@ class Table(object):
         self.rows = []
         self.has_header = False
         self._align = 'l'
+        self.align = _Align(self)
         self._P_amount = 0
 
         # if argument is a single dict, convert it to a table with keys
@@ -370,23 +346,23 @@ class Table(object):
             if index==0:
                 max_len = self.rows[0].column_count()
                 
-    def align(self,align='Left'):
+    def _align_method(self,align='Left'):
         "This changes the alignment of all the cells in the table"
         letter = align.strip().upper()[0]
-        if letter not in ['L','R','C','P']:
-            er = '"align" must be either Left, Right, Center, or Position'
+        if letter not in ['L','R','C']:
+            er = '"align" must be either Left, Right, or Center'
             raise(ValueError(er))
         self._align = letter.lower()
-        if letter =='P':
-            amount = align.split('{')[1].split('}')[0]
-            self._P_amount = amount
+#         if letter =='P':
+#             amount = align.split('{')[1].split('}')[0]
+#             self._P_amount = amount
         for row in self.rows:
             for cell in row.cells:
                 cell._align = letter
                 cell._global_align = letter
-                if letter=='P':
-                    cell._P_amount = amount
-                    cell._global_P_amount = amount
+#                 if letter=='P':
+#                     cell._P_amount = amount
+#                     cell._global_P_amount = amount
             
     def cell(self, row, col):
         """Allows for direct addressing of individual cells (row, column)
@@ -415,8 +391,8 @@ class Table(object):
 
     def _repr_latex_(self): 
         align = self._align
-        if align =='p':
-            align += '{%s}'.self._P_amount  
+#         if align =='p':
+#             align += '{%s}'.self._P_amount  
         latex = '\\begin{tabular}{*{%d}{%s}}\n'%(self.rows[0].column_count(),
                                                  align)
         # Top horizontal line of table
