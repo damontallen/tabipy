@@ -8,7 +8,7 @@ def t():
     t = Table((1,2,3),
               (4,5,6),
               (7,8,9))
-    t.align('Center')
+    t.align.center()
     return t
     
 def test_global_align_method_html():
@@ -38,7 +38,7 @@ def test_global_align_method_latex():
 def test_cell_align_property_html():
     "This tests that cell align property works in html"
     T = t()
-    T.cell(1,1).align = 'Right'
+    T.cell(1,1).align.right()
     t1_html = T._repr_html_()
     row_split = re.compile('<\s*tr\s*>')
     lines = row_split.split(t1_html)
@@ -54,7 +54,7 @@ def test_cell_align_property_html():
 def test_cell_align_property_latex():
     "This tests that cell align property works in latex"
     T = t()
-    T.cell(1,1).align = 'Right'
+    T.cell(1,1).align.right()
     t1_latex = T._repr_latex_()
     row_split = re.compile(r'\\\\')
     lines = row_split.split(t1_latex)
